@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP8266 Pro Radar</title>
+    <style>
+        body { background: #050505; color: #00FF00; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+        canvas { background: #001100; border: 2px solid #004400; border-radius: 50%; margin-top: 20px; box-shadow: 0 0 20px #003300; }
+        .stats { margin-top: 10px; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+    <canvas id="radar"></canvas>
+    <div class="stats">ANGLE: <span id="ang">0</span>&deg; | DIST: <span id="dst">0</span>m</div>
+
+<script>
+    const canvas = document.getElementById('radar');
+    const ctx = canvas.getContext('2d');
+    const size = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+    canvas.width = canvas.height = size;
+    const center = size / 2;
+    const maxDist = 20; // Matches your 20m target
+
+    function drawGrid() {
+        ctx.strokeStyle = '#004400';
+        ctx.lineWidth = 1;
+        for(let i=1; i<=4; i++) {
+            ctx.beginPath();
+            ctx.arc(center, center, (size/2) * (i/4), 0, Math.PI*2);
+            ctx.stroke();
+        }
+    }
+
+    const source = new EventSource('/events');
+    source.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        document.getElementById('ang').innerText = data.a;
+        document.getElementById('dst').innerText = data.d.toFixed(1);
+
+        // 1. Fade old pings (creates the trail)
+        ctx.fillStyle = 'rgba(0, 15, 0, 0.05)';
+        ctx.fillRect(0, 0, size, size);
+        drawGrid();
+
+        // 2. Draw Sweep Line
+        const rad = (data.a * Math.PI) / 180;
+        const x = center + Math.cos(rad) * (size/2);
+        const y = center - Math.sin(rad) * (size/2);
+        
+        ctx.strokeStyle = '#00FF00';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(center, center);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        // 3. Draw Target Blip
+        if (data.d < maxDist) {
+            const bx = center + Math.cos(rad) * (data.d / maxDist) * (size/2);
+            const by = center - Math.sin(rad) * (data.d / maxDist) * (size/2);
+            ctx.fillStyle = '#FF0000';
+            ctx.beginPath();
+            ctx.arc(bx, by, 5, 0, Math.PI*2);
+            ctx.fill();
+        }
+    };
+</script>
+</body>
+</html>
